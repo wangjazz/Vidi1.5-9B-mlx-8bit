@@ -1,0 +1,17 @@
+Vidi1.5-9B MLX Port
+Copyright 2025 Jazz Wang
+
+This project is an independent MLX port of the Vidi1.5-9B model.
+It is not affiliated with or endorsed by ByteDance.
+
+The original model and weights are from:
+  bytedance-research/Vidi1.5-9B
+  https://huggingface.co/bytedance-research/Vidi1.5-9B
+  Paper: https://arxiv.org/pdf/2511.19529
+
+The MLX implementation references the following projects:
+  - Apple MLX (MIT License): https://github.com/ml-explore/mlx
+  - mlx-lm (MIT License): https://github.com/ml-explore/mlx-examples
+  - mlx-vlm (MIT License): https://github.com/Blaizzy/mlx-vlm
+
+Model weights are subject to the original Vidi model license terms.

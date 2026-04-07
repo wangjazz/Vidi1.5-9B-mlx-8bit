@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlx-vidi"
+version = "0.1.0"
+description = "MLX port of Vidi1.5-9B — multimodal video temporal grounding on Apple Silicon"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Jazz Wang"},
+]
+keywords = ["mlx", "video-understanding", "temporal-grounding", "multimodal", "apple-silicon"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "mlx>=0.22.0",
+    "mlx-nn>=0.22.0",
+    "numpy",
+    "safetensors",
+    "transformers>=4.40.0",
+]
+
+[project.optional-dependencies]
+video = [
+    "opencv-python",
+    "decord",
+]
+all = [
+    "mlx-vidi[video]",
+    "huggingface-hub",
+]
+
+[project.scripts]
+mlx-vidi = "mlx_vidi.run:main"
+
+[project.urls]
+Homepage = "https://github.com/wangjazz/Vidi1.5-9B-mlx"
+Issues = "https://github.com/wangjazz/Vidi1.5-9B-mlx/issues"
+
+[tool.setuptools.packages.find]
+include = ["mlx_vidi*"]
