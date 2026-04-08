@@ -30,7 +30,7 @@ def extract_video_frames(
 ) -> np.ndarray:
     """Extract frames from video at specified FPS.
 
-    Uses decord if available, falls back to OpenCV.
+    Uses decord if available, falls back to ffmpeg (PIL-based).
 
     Returns:
         np.ndarray of shape (N, H, W, 3) in uint8 RGB.
@@ -42,11 +42,8 @@ def extract_video_frames(
     except ImportError:
         pass
 
-    try:
-        import cv2
-        return _extract_frames_cv2(video_path, fps, max_frames)
-    except ImportError:
-        raise ImportError("Either decord or opencv-python is required for video processing")
+    # Use ffmpeg directly — avoids OpenCV FFMPEG backend SIGSEGV
+    return _extract_frames_ffmpeg(video_path, fps, max_frames)
 
 
 def _extract_frames_decord(video_path, fps, max_frames):
@@ -63,25 +60,47 @@ def _extract_frames_decord(video_path, fps, max_frames):
     return frames
 
 
-def _extract_frames_cv2(video_path, fps, max_frames):
-    import cv2
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise ValueError(f"Cannot open video: {video_path}")
-    video_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    duration = total_frames / video_fps
+def _extract_frames_ffmpeg(video_path, fps, max_frames):
+    """Extract frames using ffmpeg → PNG → PIL. Avoids OpenCV SIGSEGV."""
+    from PIL import Image
+
+    # Get video duration via ffprobe
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", video_path],
+            capture_output=True, text=True, check=True,
+        )
+        duration = float(result.stdout.strip())
+    except Exception:
+        duration = 60.0  # fallback
+
     num_frames = min(max(int(duration * fps), 1), max_frames)
-    indices = np.linspace(0, total_frames - 1, num_frames, dtype=int)
-    frames = []
-    for idx in indices:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
-        ret, frame = cap.read()
-        if ret:
-            frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    cap.release()
-    if not frames:
-        raise ValueError(f"No frames extracted from {video_path}")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Extract frames at target fps using ffmpeg
+        cmd = [
+            "ffmpeg", "-y", "-i", video_path,
+            "-vf", f"fps={fps}",
+            "-frames:v", str(num_frames),
+            "-q:v", "2",
+            os.path.join(tmpdir, "frame_%05d.png"),
+        ]
+        subprocess.run(cmd, capture_output=True, check=True)
+
+        # Load frames
+        frame_files = sorted(
+            f for f in os.listdir(tmpdir) if f.endswith(".png")
+        )[:max_frames]
+
+        if not frame_files:
+            raise ValueError(f"No frames extracted from {video_path}")
+
+        frames = []
+        for fname in frame_files:
+            img = Image.open(os.path.join(tmpdir, fname)).convert("RGB")
+            frames.append(np.array(img))
+
     return np.stack(frames)
 
 

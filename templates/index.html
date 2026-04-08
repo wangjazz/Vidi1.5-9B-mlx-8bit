@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vidi1.5-9B MLX — Video Temporal Grounding</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #252833;
+    --border: #363a48;
+    --text: #e4e6eb;
+    --text2: #9aa0ad;
+    --accent: #6c8aff;
+    --accent2: #4ecdc4;
+    --danger: #ff6b6b;
+    --segment: rgba(108, 138, 255, 0.35);
+    --segment-border: rgba(108, 138, 255, 0.8);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  header {
+    text-align: center;
+    padding: 32px 0 24px;
+  }
+  header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  header p {
+    color: var(--text2);
+    margin-top: 8px;
+    font-size: 15px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .card h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Upload area */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(108, 138, 255, 0.05);
+  }
+  .upload-zone.has-file {
+    border-color: var(--accent2);
+    border-style: solid;
+    padding: 16px;
+  }
+  .upload-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .upload-icon { font-size: 40px; margin-bottom: 12px; }
+  .upload-text { color: var(--text2); font-size: 14px; }
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+  }
+  .file-info .name { font-weight: 600; }
+  .file-info .meta { color: var(--text2); }
+
+  /* Query input */
+  .query-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .query-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .query-input:focus { border-color: var(--accent); }
+  .query-input::placeholder { color: var(--text2); }
+
+  .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { filter: brightness(1.15); }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Quick queries */
+  .quick-queries {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .quick-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: transparent;
+    color: var(--text2);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .quick-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Video player */
+  .video-container {
+    position: relative;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  video {
+    width: 100%;
+    display: block;
+    border-radius: 10px;
+  }
+
+  /* Timeline */
+  .timeline-container { margin-top: 16px; }
+  .timeline-label {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 6px;
+  }
+  .timeline {
+    position: relative;
+    height: 40px;
+    background: var(--surface2);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .timeline-segment {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: var(--segment);
+    border-left: 2px solid var(--segment-border);
+    border-right: 2px solid var(--segment-border);
+    cursor: pointer;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: rgba(255,255,255,0.9);
+    font-weight: 600;
+    min-width: 4px;
+  }
+  .timeline-segment:hover {
+    background: rgba(108, 138, 255, 0.55);
+  }
+  .timeline-playhead {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: var(--danger);
+    pointer-events: none;
+    transition: left 0.1s linear;
+  }
+  .timeline-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 4px;
+    padding: 0 2px;
+  }
+
+  /* Results */
+  .results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .result-item {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .result-item .label {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 4px;
+  }
+  .result-item .value {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  /* Segments list */
+  .segments-list { margin-top: 16px; }
+  .segment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    margin: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 14px;
+  }
+  .segment-chip:hover {
+    border-color: var(--accent);
+    background: rgba(108, 138, 255, 0.1);
+  }
+  .segment-chip .time {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .segment-chip .norm {
+    color: var(--text2);
+    font-size: 12px;
+  }
+
+  /* Status */
+  .status {
+    text-align: center;
+    padding: 20px;
+    color: var(--text2);
+    font-size: 14px;
+  }
+  .status.loading { color: var(--accent); }
+  .status.error { color: var(--danger); }
+
+  .spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Raw output */
+  .raw-output {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    word-break: break-all;
+  }
+
+  /* History */
+  .history-item {
+    padding: 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .history-item:hover { border-left: 3px solid var(--accent); }
+  .history-query { font-weight: 600; font-size: 14px; }
+  .history-result { color: var(--text2); font-size: 13px; margin-top: 4px; }
+
+  .hidden { display: none; }
+
+  /* Settings row */
+  .settings-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  .settings-row label { color: var(--text2); }
+  .settings-row input[type="number"] {
+    width: 70px;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Vidi1.5-9B MLX</h1>
+    <p>Video Temporal Grounding — find <em>when</em> things happen in your video</p>
+  </header>
+
+  <!-- Upload + Query -->
+  <div class="card">
+    <h2>Input</h2>
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="videoInput" accept="video/*">
+      <div id="uploadPrompt">
+        <div class="upload-icon">&#x1F3AC;</div>
+        <div>Drop video here or click to upload</div>
+        <div class="upload-text">MP4, MOV, AVI — up to 500 MB</div>
+      </div>
+      <div id="fileInfo" class="file-info hidden"></div>
+    </div>
+
+    <div class="query-row">
+      <input type="text" class="query-input" id="queryInput"
+             placeholder="Describe what to find, e.g. &quot;a person singing&quot; or &quot;guitar playing&quot;"
+             autocomplete="off">
+      <button class="btn btn-primary" id="runBtn" disabled>Analyze</button>
+    </div>
+
+    <div class="quick-queries">
+      <button class="quick-btn" data-q="a person talking">person talking</button>
+      <button class="quick-btn" data-q="a person singing">person singing</button>
+      <button class="quick-btn" data-q="an instrument being played">instrument played</button>
+      <button class="quick-btn" data-q="a close-up of a face">face close-up</button>
+      <button class="quick-btn" data-q="an audience or crowd">audience/crowd</button>
+      <button class="quick-btn" data-q="text or titles on screen">text on screen</button>
+    </div>
+
+    <div class="settings-row">
+      <label>FPS: <input type="number" id="fpsInput" value="1" min="0.5" max="10" step="0.5"></label>
+      <label>Max frames: <input type="number" id="maxFramesInput" value="128" min="1" max="512" step="1"></label>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div id="status" class="status hidden"></div>
+
+  <!-- Video Player + Timeline -->
+  <div id="playerCard" class="card hidden">
+    <h2>Video Player</h2>
+    <div class="video-container">
+      <video id="videoPlayer" controls></video>
+    </div>
+    <div class="timeline-container">
+      <div class="timeline-label">Timeline — <span id="durationLabel">0:00</span></div>
+      <div class="timeline" id="timeline">
+        <div class="timeline-playhead" id="playhead"></div>
+      </div>
+      <div class="timeline-ticks" id="timelineTicks"></div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="resultsCard" class="card hidden">
+    <h2>Results</h2>
+
+    <div class="results-grid">
+      <div class="result-item">
+        <div class="label">Segments Found</div>
+        <div class="value" id="segCount">—</div>
+      </div>
+      <div class="result-item">
+        <div class="label">Speed</div>
+        <div class="value" id="speed">—</div>
+      </div>
+      <div class="result-item">
+        <div class="label">Preprocess</div>
+        <div class="value" id="tPreprocess">—</div>
+      </div>
+      <div class="result-item">
+        <div class="label">Generate</div>
+        <div class="value" id="tGenerate">—</div>
+      </div>
+    </div>
+
+    <div class="segments-list" id="segmentsList"></div>
+
+    <div>
+      <div class="timeline-label" style="margin-top:16px;">Raw Model Output</div>
+      <div class="raw-output" id="rawOutput"></div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div id="historyCard" class="card hidden">
+    <h2>Query History</h2>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+// State
+let currentFile = null;
+let videoDuration = 0;
+let currentSegments = [];
+let queryHistory = [];
+
+// Elements
+const uploadZone = $('#uploadZone');
+const videoInput = $('#videoInput');
+const queryInput = $('#queryInput');
+const runBtn = $('#runBtn');
+const videoPlayer = $('#videoPlayer');
+const timeline = $('#timeline');
+const playhead = $('#playhead');
+const status = $('#status');
+
+// Upload handling
+videoInput.addEventListener('change', handleFileSelect);
+uploadZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) {
+    videoInput.files = e.dataTransfer.files;
+    handleFileSelect();
+  }
+});
+
+async function handleFileSelect() {
+  const file = videoInput.files[0];
+  if (!file) return;
+
+  showStatus('Uploading video...', 'loading');
+
+  const form = new FormData();
+  form.append('video', file);
+
+  try {
+    const resp = await fetch('/upload', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    currentFile = data.filename;
+    videoDuration = data.duration;
+
+    // Update UI
+    uploadZone.classList.add('has-file');
+    $('#uploadPrompt').classList.add('hidden');
+    $('#fileInfo').classList.remove('hidden');
+    $('#fileInfo').innerHTML = `
+      <span class="name">${file.name}</span>
+      <span class="meta">${data.size_mb} MB &middot; ${formatTime(data.duration)}</span>
+    `;
+
+    // Setup video player
+    videoPlayer.src = `/uploads/${data.filename}`;
+    $('#playerCard').classList.remove('hidden');
+    $('#durationLabel').textContent = formatTime(data.duration);
+    buildTimelineTicks(data.duration);
+
+    runBtn.disabled = false;
+    hideStatus();
+  } catch (err) {
+    showStatus('Upload failed: ' + err.message, 'error');
+  }
+}
+
+// Query
+runBtn.addEventListener('click', runInference);
+queryInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !runBtn.disabled && queryInput.value.trim()) runInference();
+});
+
+$$('.quick-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    queryInput.value = btn.dataset.q;
+    if (currentFile) runInference();
+  });
+});
+
+async function runInference() {
+  const query = queryInput.value.trim();
+  if (!query || !currentFile) return;
+
+  runBtn.disabled = true;
+  showStatus('<span class="spinner"></span> Analyzing video... this may take 1-2 minutes', 'loading');
+
+  try {
+    const resp = await fetch('/infer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: currentFile,
+        query: query,
+        fps: parseFloat($('#fpsInput').value) || 1.0,
+        max_frames: parseInt($('#maxFramesInput').value) || 128,
+      }),
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    currentSegments = data.segments;
+    displayResults(data, query);
+    addToHistory(query, data);
+    hideStatus();
+  } catch (err) {
+    showStatus('Inference failed: ' + err.message, 'error');
+  } finally {
+    runBtn.disabled = false;
+  }
+}
+
+function displayResults(data, query) {
+  $('#resultsCard').classList.remove('hidden');
+  $('#segCount').textContent = data.segments.length;
+  $('#speed').textContent = `${data.tokens_per_sec} tok/s`;
+  $('#tPreprocess').textContent = `${data.time_preprocess}s`;
+  $('#tGenerate').textContent = `${data.time_generate}s`;
+  $('#rawOutput').textContent = data.raw_output;
+
+  // Segments on timeline
+  timeline.querySelectorAll('.timeline-segment').forEach(el => el.remove());
+  data.segments.forEach((seg, i) => {
+    const left = (seg.start / videoDuration) * 100;
+    const width = Math.max(((seg.end - seg.start) / videoDuration) * 100, 0.5);
+    const el = document.createElement('div');
+    el.className = 'timeline-segment';
+    el.style.left = `${left}%`;
+    el.style.width = `${width}%`;
+    el.title = `${formatTime(seg.start)} - ${formatTime(seg.end)}`;
+    el.textContent = width > 5 ? `${formatTime(seg.start)}` : '';
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      videoPlayer.currentTime = seg.start;
+      videoPlayer.play();
+    });
+    timeline.appendChild(el);
+  });
+
+  // Segment chips
+  const list = $('#segmentsList');
+  list.innerHTML = '';
+  data.segments.forEach((seg, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'segment-chip';
+    chip.innerHTML = `
+      <span class="time">${formatTime(seg.start)} - ${formatTime(seg.end)}</span>
+      <span class="norm">(${seg.raw})</span>
+    `;
+    chip.addEventListener('click', () => {
+      videoPlayer.currentTime = seg.start;
+      videoPlayer.play();
+    });
+    list.appendChild(chip);
+  });
+}
+
+function addToHistory(query, data) {
+  queryHistory.unshift({ query, data });
+  const card = $('#historyCard');
+  card.classList.remove('hidden');
+  const list = $('#historyList');
+
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  item.innerHTML = `
+    <div class="history-query">${escapeHtml(query)}</div>
+    <div class="history-result">${data.segments.length} segments: ${data.raw_output}</div>
+  `;
+  item.addEventListener('click', () => {
+    currentSegments = data.segments;
+    displayResults(data, query);
+  });
+  list.prepend(item);
+}
+
+// Playhead tracking
+videoPlayer.addEventListener('timeupdate', () => {
+  if (videoDuration > 0) {
+    const pct = (videoPlayer.currentTime / videoDuration) * 100;
+    playhead.style.left = `${pct}%`;
+  }
+});
+
+// Click on timeline to seek
+timeline.addEventListener('click', e => {
+  const rect = timeline.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  videoPlayer.currentTime = pct * videoDuration;
+});
+
+// Timeline ticks
+function buildTimelineTicks(duration) {
+  const ticks = $('#timelineTicks');
+  ticks.innerHTML = '';
+  const numTicks = Math.min(Math.ceil(duration / 10), 12);
+  const interval = duration / numTicks;
+  for (let i = 0; i <= numTicks; i++) {
+    const span = document.createElement('span');
+    span.textContent = formatTime(i * interval);
+    ticks.appendChild(span);
+  }
+}
+
+// Helpers
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+function showStatus(msg, type) {
+  status.className = `status ${type}`;
+  status.innerHTML = msg;
+  status.classList.remove('hidden');
+}
+
+function hideStatus() {
+  status.classList.add('hidden');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+
+</body>
+</html>

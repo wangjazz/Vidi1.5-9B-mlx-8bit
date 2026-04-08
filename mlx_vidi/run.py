@@ -86,6 +86,17 @@ def load_model(model_path: str, config: ModelConfig) -> VidiEngine:
     """Load Vidi model with MLX weights."""
     engine = VidiEngine(config)
 
+    # Check if model is quantized and apply quantization structure first
+    config_path = os.path.join(model_path, "config.json")
+    with open(config_path) as f:
+        raw_config = json.load(f)
+
+    if "quantization" in raw_config:
+        quant = raw_config["quantization"]
+        print(f"Applying {quant['bits']}-bit quantization structure (group_size={quant['group_size']})...")
+        from .quantize import quantize_engine
+        quantize_engine(engine, bits=quant["bits"], group_size=quant["group_size"])
+
     # Load weights
     weight_files = sorted(Path(model_path).glob("*.safetensors"))
     if not weight_files:
