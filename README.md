@@ -20,6 +20,10 @@ pipeline_tag: video-text-to-text
 
 # Vidi1.5-9B MLX (8-bit Quantized)
 
+> **📦 Model weights are hosted on HuggingFace, not in this Git repo.**
+> Download from: **https://huggingface.co/wangjazz/Vidi1.5-9B-mlx-8bit**
+> See [Download Weights](#download-weights) below.
+
 MLX port of [ByteDance Vidi1.5-9B](https://huggingface.co/bytedance-research/Vidi1.5-9B) for Apple Silicon.
 
 Vidi is a multimodal video temporal grounding model — give it a video and a text query, and it tells you *when* things happen.
