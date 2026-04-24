@@ -1,0 +1,5 @@
+
+# Model weights (use HuggingFace instead)
+*.safetensors
+tokenizer.json
+tokenizer.model
